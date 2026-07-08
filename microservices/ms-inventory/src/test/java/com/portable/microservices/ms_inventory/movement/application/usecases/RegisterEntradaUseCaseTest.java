@@ -19,7 +19,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.portable.microservices.ms_inventory.kardex.domain.ports.in.FindKardexPortIn;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.repository.LocationJpaRepository;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.entity.LoteJpaEntity;
+import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.repository.LoteJpaRepository;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movimiento;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.KardexPersistencePortOut;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.LotePersistencePortOut;
@@ -36,6 +38,10 @@ class RegisterEntradaUseCaseTest {
     private LotePersistencePortOut lotePersistence;
     @Mock
     private FindKardexPortIn findKardexPortIn;
+    @Mock
+    private LoteJpaRepository loteRepository;
+    @Mock
+    private LocationJpaRepository locationRepository;
     private final CostoPromedioCalculator costoPromedioCalculator = new CostoPromedioCalculator();
 
     @InjectMocks
@@ -48,7 +54,7 @@ class RegisterEntradaUseCaseTest {
         UUID movementId = UUID.randomUUID();
         LoteJpaEntity lote = lote(loteId, productId, 6);
         useCase = new RegisterEntradaUseCase(movimientoPersistence, kardexPersistence, lotePersistence,
-                costoPromedioCalculator, findKardexPortIn);
+                costoPromedioCalculator, findKardexPortIn, loteRepository, locationRepository);
 
         when(lotePersistence.findLoteById(loteId)).thenReturn(Optional.of(lote));
         when(findKardexPortIn.findLastByProductId(productId)).thenReturn(Optional.empty());

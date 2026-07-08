@@ -1,10 +1,9 @@
 package com.portable.microservices.ms_tracking.picking.domain.ports.in;
 
-import java.util.List;
-
 import com.portable.microservices.ms_tracking.picking.domain.model.OrdenPick;
+import com.portable.microservices.ms_tracking.shared.infrastructure.presentation.PagedResponse;
 
 public interface ListarOrdenesPickPortIn {
-    List<OrdenPick> execute();
-    List<OrdenPick> executeByEstado(String estado);
+    PagedResponse<OrdenPick> execute(int page, int size);
+    PagedResponse<OrdenPick> executeByEstado(String estado, int page, int size);
 }

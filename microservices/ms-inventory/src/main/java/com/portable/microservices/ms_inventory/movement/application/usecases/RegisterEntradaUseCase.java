@@ -11,7 +11,10 @@ import com.portable.microservices.ms_inventory.kardex.domain.model.Kardex;
 import com.portable.microservices.ms_inventory.kardex.domain.ports.in.FindKardexPortIn;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator.ResultadoCalculoPPP;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.entity.LocationJpaEntity;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.repository.LocationJpaRepository;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.entity.LoteJpaEntity;
+import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.repository.LoteJpaRepository;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movimiento;
 
 import com.portable.microservices.ms_inventory.movement.domain.ports.in.RegisterEntradaPortIn;
@@ -37,6 +40,8 @@ public class RegisterEntradaUseCase implements RegisterEntradaPortIn {
     private final LotePersistencePortOut lotePersistence;
     private final CostoPromedioCalculator costoPromedioCalculator;
     private final FindKardexPortIn findKardexPortIn;
+    private final LoteJpaRepository loteRepository;
+    private final LocationJpaRepository locationRepository;
 
 
     @Override
@@ -51,6 +56,20 @@ public class RegisterEntradaUseCase implements RegisterEntradaPortIn {
         // Validar cantidad
         if (cantidad == null || cantidad <= 0) {
             throw new IllegalArgumentException("La cantidad debe ser mayor a 0");
+        }
+
+        // Validar capacidad de la locación
+        if (lote.getLocacion() != null && lote.getLocacion().getIdLocacion() != null) {
+            UUID locId = lote.getLocacion().getIdLocacion();
+            LocationJpaEntity location = locationRepository.findById(locId)
+                    .orElseThrow(() -> new IllegalArgumentException("Locación no encontrada: " + locId));
+            if (location.getCapacidad() != null) {
+                long currentTotal = loteRepository.getTotalQtyByLocation(locId);
+                if (currentTotal + cantidad > location.getCapacidad()) {
+                    throw new IllegalArgumentException(
+                            "Capacidad de la locación excedida: " + (currentTotal + cantidad) + " > " + location.getCapacidad());
+                }
+            }
         }
 
         // Crear movimiento de tipo INGRESO

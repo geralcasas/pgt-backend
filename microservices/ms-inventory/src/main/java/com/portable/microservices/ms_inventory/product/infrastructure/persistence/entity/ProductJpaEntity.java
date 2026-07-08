@@ -9,7 +9,6 @@ import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
-
 import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 
 import jakarta.persistence.Column;
@@ -73,7 +72,8 @@ public class ProductJpaEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "modelos_compatibles", columnDefinition = "jsonb")
-    private Map<String, Object> modelos_compatibles;
+    @Builder.Default
+    private List<String> modelos_compatibles = List.of();
 
     @Column(name = "pre_com", precision = 12, scale = 4, nullable = false)
     private BigDecimal pre_com;

@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record StockAlertWsDto(
     UUID productId,
+    String productName,
     Integer currentStock,
     Integer minStock
 ) {}

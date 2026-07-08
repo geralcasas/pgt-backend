@@ -10,7 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.portable.microservices.ms_inventory.kardex.domain.model.Kardex;
 import com.portable.microservices.ms_inventory.kardex.domain.ports.in.FindKardexPortIn;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.entity.LocationJpaEntity;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.repository.LocationJpaRepository;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.entity.LoteJpaEntity;
+import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.repository.LoteJpaRepository;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movimiento;
 import com.portable.microservices.ms_inventory.movement.domain.ports.in.RegisterAjustePositivoPortIn;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.KardexPersistencePortOut;
@@ -37,6 +40,8 @@ public class RegisterAjustePositivoUseCase implements RegisterAjustePositivoPort
     private final LotePersistencePortOut lotePersistence;
     private final CostoPromedioCalculator costoPromedioCalculator;
     private final FindKardexPortIn findKardexPortIn;
+    private final LoteJpaRepository loteRepository;
+    private final LocationJpaRepository locationRepository;
 
     @Override
     @Transactional
@@ -55,6 +60,20 @@ public class RegisterAjustePositivoUseCase implements RegisterAjustePositivoPort
         // El motivo es obligatorio en ajustes para garantizar trazabilidad
         if (motivo == null || motivo.isBlank()) {
             throw new IllegalArgumentException("El motivo es obligatorio para un ajuste positivo");
+        }
+
+        // Validar capacidad de la locación
+        if (lote.getLocacion() != null && lote.getLocacion().getIdLocacion() != null) {
+            UUID locId = lote.getLocacion().getIdLocacion();
+            LocationJpaEntity location = locationRepository.findById(locId)
+                    .orElseThrow(() -> new IllegalArgumentException("Locación no encontrada: " + locId));
+            if (location.getCapacidad() != null) {
+                long currentTotal = loteRepository.getTotalQtyByLocation(locId);
+                if (currentTotal + cantidad > location.getCapacidad()) {
+                    throw new IllegalArgumentException(
+                            "Capacidad de la locación excedida: " + (currentTotal + cantidad) + " > " + location.getCapacidad());
+                }
+            }
         }
 
         // Crear movimiento de tipo AJUSTE_POSITIVO
@@ -88,6 +107,9 @@ public class RegisterAjustePositivoUseCase implements RegisterAjustePositivoPort
                 resultado.stockAnterior(),
                 resultado.costoPromNuevo()
         );
+
+        lote.setCantidad(lote.getCantidad() + cantidad);
+        lotePersistence.update(lote);
 
         log.info("Ajuste positivo registrado exitosamente para lote: {}, cantidad: {}", idLote, cantidad);
 

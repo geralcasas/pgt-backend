@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import com.portable.microservices.ms_tracking.picking.domain.model.DetallePick;
@@ -14,6 +15,7 @@ import com.portable.microservices.ms_tracking.picking.infrastructure.persistence
 import com.portable.microservices.ms_tracking.picking.infrastructure.persistence.mapper.OrdenPickPersistenceMapper;
 import com.portable.microservices.ms_tracking.picking.infrastructure.persistence.repository.DetallePickJpaRepository;
 import com.portable.microservices.ms_tracking.picking.infrastructure.persistence.repository.OrdenPickJpaRepository;
+import com.portable.microservices.ms_tracking.shared.infrastructure.presentation.PagedResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -43,17 +45,23 @@ public class OrdenPickPersistenceAdapter implements OrdenPickPersistencePortOut 
     }
 
     @Override
-    public List<OrdenPick> findAll() {
-        return repository.findAll().stream()
+    public PagedResponse<OrdenPick> findAll(int page, int size) {
+        var pageable = PageRequest.of(page, size);
+        var result = repository.findAll(pageable);
+        var items = result.getContent().stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
+        return new PagedResponse<>(items, result.getTotalElements(), page, size);
     }
 
     @Override
-    public List<OrdenPick> findByEstado(String estado) {
-        return repository.findByEstado(estado).stream()
+    public PagedResponse<OrdenPick> findByEstado(String estado, int page, int size) {
+        var pageable = PageRequest.of(page, size);
+        var result = repository.findByEstado(estado, pageable);
+        var items = result.getContent().stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
+        return new PagedResponse<>(items, result.getTotalElements(), page, size);
     }
 
     @Override

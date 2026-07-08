@@ -15,11 +15,13 @@ import com.portable.microservices.ms_inventory.kardex.domain.model.Kardex;
 import com.portable.microservices.ms_inventory.kardex.domain.ports.out.KardexPersistencePortOut;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator;
 import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.entity.LocationJpaEntity;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.repository.LocationJpaRepository;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.entity.LoteJpaEntity;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.repository.LoteJpaRepository;
 import com.portable.microservices.ms_inventory.movement.domain.event.MovementCreatedEvent;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movement;
 import com.portable.microservices.ms_inventory.movement.domain.model.TipoMovimiento;
+import com.portable.microservices.ms_inventory.shared.domain.event.StockDecreasedEvent;
 import com.portable.microservices.ms_inventory.movement.domain.ports.in.RegisterMovementPortIn;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.MovementPersistencePortOut;
 import com.portable.microservices.ms_inventory.product.infrastructure.persistence.entity.ProductJpaEntity;
@@ -33,6 +35,7 @@ public class RegisterMovementUseCase implements RegisterMovementPortIn {
     private final KardexPersistencePortOut kardexPersistence;
     private final CostoPromedioCalculator costoPromedioCalculator;
     private final LoteJpaRepository loteRepository;
+    private final LocationJpaRepository locationRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -62,6 +65,18 @@ public class RegisterMovementUseCase implements RegisterMovementPortIn {
         if ((tipo == TipoMovimiento.INGRESO || tipo == TipoMovimiento.AJUSTE_POSITIVO)
                 && (command.costoUnit() == null || command.costoUnit().compareTo(BigDecimal.ZERO) <= 0)) {
             throw new IllegalArgumentException("El costo unitario debe ser mayor a 0 para INGRESO/AJUSTE_POSITIVO");
+        }
+
+        if (command.locationId() != null && (tipo == TipoMovimiento.INGRESO || tipo == TipoMovimiento.AJUSTE_POSITIVO)) {
+            LocationJpaEntity location = locationRepository.findById(command.locationId())
+                    .orElseThrow(() -> new IllegalArgumentException("Locación no encontrada: " + command.locationId()));
+            if (location.getCapacidad() != null) {
+                long currentTotal = loteRepository.getTotalQtyByLocation(command.locationId());
+                if (currentTotal + command.cantidad() > location.getCapacidad()) {
+                    throw new IllegalArgumentException(
+                            "Capacidad de la locación excedida: " + (currentTotal + command.cantidad()) + " > " + location.getCapacidad());
+                }
+            }
         }
 
         UUID resolvedLotId = command.lotId();
@@ -157,20 +172,26 @@ public class RegisterMovementUseCase implements RegisterMovementPortIn {
                     cantSalida,
                     resultado.stockActual(),
                     resultado.costoPromNuevo());
+            UUID locacionId;
             if (tipo == TipoMovimiento.SALIDA || tipo == TipoMovimiento.AJUSTE_NEGATIVO) {
-                UUID locacionId = locacionFromDeduction;
+                locacionId = locacionFromDeduction;
                 if (locacionId == null && resolvedLotId != null) {
                     locacionId = loteRepository.findById(resolvedLotId)
                             .map(l -> l.getLocacion() != null ? l.getLocacion().getIdLocacion() : null)
                             .orElse(null);
                 }
-                eventPublisher.publishEvent(new MovementCreatedEvent(
-                        saved.id(),
-                        command.productId(),
-                        tipo.name(),
-                        locacionId,
-                        command.cantidad(),
-                        command.userId()));
+            } else {
+                locacionId = command.locationId();
+            }
+            eventPublisher.publishEvent(new MovementCreatedEvent(
+                    saved.id(),
+                    command.productId(),
+                    tipo.name(),
+                    locacionId,
+                    command.cantidad(),
+                    command.userId()));
+            if (tipo == TipoMovimiento.SALIDA || tipo == TipoMovimiento.AJUSTE_NEGATIVO) {
+                eventPublisher.publishEvent(new StockDecreasedEvent(command.productId(), resultado.stockActual()));
             }
             kardexPersistence.save(kardex);
         }

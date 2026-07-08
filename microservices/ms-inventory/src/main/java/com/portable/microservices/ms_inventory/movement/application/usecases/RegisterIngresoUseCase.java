@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,7 +13,11 @@ import com.portable.microservices.ms_inventory.kardex.domain.model.Kardex;
 import com.portable.microservices.ms_inventory.kardex.domain.ports.out.KardexPersistencePortOut;
 import com.portable.microservices.ms_inventory.kardex.domain.ports.out.LotPersistencePortOut;
 import com.portable.microservices.ms_inventory.kardex.domain.service.CostoPromedioCalculator;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.entity.LocationJpaEntity;
+import com.portable.microservices.ms_inventory.locations.infrastructure.persistence.repository.LocationJpaRepository;
 import com.portable.microservices.ms_inventory.lot.domain.model.Lot;
+import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.repository.LoteJpaRepository;
+import com.portable.microservices.ms_inventory.movement.domain.event.MovementCreatedEvent;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movement;
 import com.portable.microservices.ms_inventory.movement.domain.model.TipoMovimiento;
 import com.portable.microservices.ms_inventory.movement.domain.ports.in.RegisterIngresoPortIn;
@@ -27,9 +32,11 @@ public class RegisterIngresoUseCase implements RegisterIngresoPortIn {
     private final MovementPersistencePortOut movementPersistence;
     private final KardexPersistencePortOut kardexPersistence;
     private final CostoPromedioCalculator costoPromedioCalculator;
+    private final LoteJpaRepository loteRepository;
+    private final LocationJpaRepository locationRepository;
 
-    // TODO: Inyectar el publisher de eventos Rabbit
-    // private final MovementRabbitPublisher eventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
+
     @Override
     @Transactional
     public void execute(RegisterIngresoCommand command) {
@@ -45,6 +52,17 @@ public class RegisterIngresoUseCase implements RegisterIngresoPortIn {
         }
         if (command.productId() == null) {
             throw new IllegalArgumentException("El producto es requerido");
+        }
+        if (command.locationId() != null) {
+            LocationJpaEntity location = locationRepository.findById(command.locationId())
+                    .orElseThrow(() -> new IllegalArgumentException("Locación no encontrada: " + command.locationId()));
+            if (location.getCapacidad() != null) {
+                long currentTotal = loteRepository.getTotalQtyByLocation(command.locationId());
+                if (currentTotal + command.cantidad() > location.getCapacidad()) {
+                    throw new IllegalArgumentException(
+                            "Capacidad de la locación excedida: " + (currentTotal + command.cantidad()) + " > " + location.getCapacidad());
+                }
+            }
         }
         Lot lot = new Lot(
             null,
@@ -96,17 +114,15 @@ public class RegisterIngresoUseCase implements RegisterIngresoPortIn {
 
         kardexPersistence.save(kardex);
         // ============================================
-        // PASO 6: Publicar evento (RabbitMQ)
+        // PASO 6: Publicar evento
         // ============================================
-        /*
-        MovementCreatedEvent event = new MovementCreatedEvent(
+        eventPublisher.publishEvent(new MovementCreatedEvent(
             movimientoGuardado.id(),
             command.productId(),
             TipoMovimiento.INGRESO.name(),
             command.locationId(),
-            command.cantidad()
-        );
-        eventPublisher.publish(event);
-        */
+            command.cantidad(),
+            command.userId()
+        ));
     }
 }

@@ -5,16 +5,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.portable.microservices.ms_inventory.kardex.infrastructure.persistence.entity.KardexJpaEntity;
 import com.portable.microservices.ms_inventory.lot.infrastructure.persistence.entity.LoteJpaEntity;
+import com.portable.microservices.ms_inventory.movement.domain.event.MovementCreatedEvent;
 import com.portable.microservices.ms_inventory.movement.domain.model.Movimiento;
 import com.portable.microservices.ms_inventory.movement.domain.ports.in.RegisterSalidaBatchPortIn;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.KardexPersistencePortOut;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.LotePersistencePortOut;
 import com.portable.microservices.ms_inventory.movement.domain.ports.out.MovimientoPersistencePortOut;
+import com.portable.microservices.ms_inventory.shared.domain.event.StockDecreasedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +30,7 @@ public class RegisterSalidaBatchUseCase implements RegisterSalidaBatchPortIn {
     private final MovimientoPersistencePortOut movimientoPersistence;
     private final KardexPersistencePortOut kardexPersistence;
     private final LotePersistencePortOut lotePersistence;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -114,6 +118,18 @@ public class RegisterSalidaBatchUseCase implements RegisterSalidaBatchPortIn {
                         "Stock insuficiente en lotes. Faltan " + remaining + " unidades");
             }
         }
+
+        UUID locacionId = lote.getLocacion() != null ? lote.getLocacion().getIdLocacion() : null;
+        eventPublisher.publishEvent(new MovementCreatedEvent(
+                movimientoGuardado.idMovimiento(),
+                idProducto,
+                movimientoGuardado.tipo(),
+                locacionId,
+                movimientoGuardado.cantidad(),
+                userId));
+
+        Integer nuevoStock = stockDisponible - cantidad;
+        eventPublisher.publishEvent(new StockDecreasedEvent(idProducto, nuevoStock));
 
         return movimientoGuardado.idMovimiento();
     }

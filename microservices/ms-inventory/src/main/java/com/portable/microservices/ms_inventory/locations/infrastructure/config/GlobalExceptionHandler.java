@@ -39,11 +39,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Error en la validación de los datos enviados", errors));
     }
 
-    // 4. Atrapa IllegalArgumentException (entidad no encontrada por ID) y responde 404
+    // 4. Errores de validación de negocio (capacidad, stock, etc.) — 400
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Void>> handleNotFound(IllegalArgumentException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity
-                .status(HttpStatus.SC_NOT_FOUND)
+                .status(HttpStatus.SC_BAD_REQUEST)
                 .body(ApiResponse.error(ex.getMessage(), null));
     }
 

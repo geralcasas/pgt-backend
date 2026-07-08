@@ -38,6 +38,7 @@ import com.portable.microservices.ms_tracking.picking.presentation.dto.OrdenPick
 import com.portable.microservices.ms_tracking.picking.presentation.dto.RutaNodeResponse;
 import com.portable.microservices.ms_tracking.picking.presentation.dto.RutaResponse;
 import com.portable.microservices.ms_tracking.picking.presentation.mapper.OrdenPickWebMapper;
+import com.portable.microservices.ms_tracking.shared.infrastructure.presentation.PagedResponse;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -105,19 +106,25 @@ public class PickingOrderController {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> listar(
-            @RequestParam(required = false) String estado) {
-        List<OrdenPickResponse> ordenes;
+            @RequestParam(required = false) String estado,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "10") int tamanioPagina) {
+        PagedResponse<OrdenPickResponse> result;
         if (estado != null) {
-            ordenes = listarOrdenesPick.executeByEstado(estado)
-                    .stream().map(mapper::toResponse).toList();
+            var page = listarOrdenesPick.executeByEstado(estado, pagina, tamanioPagina);
+            result = new PagedResponse<>(
+                    page.items().stream().map(mapper::toResponse).toList(),
+                    page.total(), page.page(), page.pageSize());
         } else {
-            ordenes = listarOrdenesPick.execute()
-                    .stream().map(mapper::toResponse).toList();
+            var page = listarOrdenesPick.execute(pagina, tamanioPagina);
+            result = new PagedResponse<>(
+                    page.items().stream().map(mapper::toResponse).toList(),
+                    page.total(), page.page(), page.pageSize());
         }
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Lista de órdenes obtenida",
-                "data", ordenes
+                "data", result
         ));
     }
 

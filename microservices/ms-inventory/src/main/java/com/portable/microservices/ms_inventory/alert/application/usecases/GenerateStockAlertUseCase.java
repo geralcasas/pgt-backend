@@ -26,6 +26,7 @@ public class GenerateStockAlertUseCase {
                 StockAlert alert = new StockAlert(productId, currentStock, minStock);
                 alertRepository.save(alert);
                 webSocketEventPublisher.publishStockAlert(productId, currentStock, minStock);
+                webSocketEventPublisher.publishDashboardRefresh();
             }
         } else {
             // alertRepository.resolveActiveAlerts(productId);

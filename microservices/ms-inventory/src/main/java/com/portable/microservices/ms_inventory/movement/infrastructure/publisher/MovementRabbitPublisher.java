@@ -30,5 +30,10 @@ public class MovementRabbitPublisher {
             log.error("Error al publicar evento de RabbitMQ: {}", e.getMessage());
         }
         webSocketEventPublisher.publishMovementCreated(event);
+
+        if ("SALIDA".equals(event.tipoMovimiento()) || "AJUSTE_NEGATIVO".equals(event.tipoMovimiento())) {
+            webSocketEventPublisher.publishHeatmapForMovement(event.locacionId());
+        }
+        webSocketEventPublisher.publishDashboardRefresh();
     }
 }
